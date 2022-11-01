@@ -29,19 +29,17 @@ class Song
   end
 
   def save
-    sql = <<-SQL
-      INSERT INTO songs (name, album)
-      VALUES (?, ?)
-    SQL
-
-    # insert the song
-    DB[:conn].execute(sql, self.name, self.album)
-
-    # get the song ID from the database and save it to the Ruby instance
-    self.id = DB[:conn].execute("SELECT last_insert_rowid() FROM songs")[0][0]
-
-    # return the Ruby instance
-    self
+    if self.id
+      self.update
+    else
+      sql = <<-SQL
+        INSERT INTO songs (name, album)
+        VALUES (?, ?)
+      SQL
+      DB[:conn].execute(sql, self.name, self.album)
+      @id = DB[:conn].execute("SELECT last_insert_rowid() FROM songs")[0][0]
+      self
+    end
   end
 
   def self.create(name:, album:)
@@ -71,4 +69,19 @@ class Song
     DB[:conn].execute(sql, name).map { |row| self.new_from_db(row) }.first
   end
   
+  def update
+    sql = "UPDATE songs SET name = ?, album = ? WHERE name = ?"
+    DB[:conn].execute(sql, self.name, self.album, self.name)
+  end
+
+  def self.find_or_create_by(name:, album:)
+    song = DB[:conn].execute("SELECT * FROM songs WHERE name = ? AND album = ?", name, album)
+    if !song.empty?
+      song_data = song[0]
+      song = Song.new(song_data[0], song_data[1], song_data[2])
+    else
+      song = self.create(name: name, album: album)
+    end
+    song
+  end
 end
